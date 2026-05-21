@@ -46,6 +46,8 @@ export default function AddProductModal({ onClose }: Props) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [hasVariants, setHasVariants] = useState(false);
   const [variantAttrs, setVariantAttrs] = useState<VariantAttribute[]>([]);
+  const [selectedPresetValues, setSelectedPresetValues] = useState<Record<string, string[]>>({});
+  const [activePresets, setActivePresets] = useState<string[]>([]);
   const [newAttrName, setNewAttrName] = useState("");
   const [newAttrValues, setNewAttrValues] = useState("");
   const [generatedVariants, setGeneratedVariants] = useState<ProductVariant[]>([]);
@@ -79,6 +81,54 @@ export default function AddProductModal({ onClose }: Props) {
 
   const removeAttr = (index: number) => {
     const next = variantAttrs.filter((_, i) => i !== index);
+    setVariantAttrs(next);
+    autoGenerateVariants(next);
+  };
+
+  const togglePreset = (presetId: string) => {
+    setActivePresets((prev) =>
+      prev.includes(presetId) ? prev.filter((id) => id !== presetId) : [...prev, presetId]
+    );
+  };
+
+  const togglePresetValue = (presetName: string, value: string) => {
+    setSelectedPresetValues((prev) => {
+      const current = prev[presetName] ?? [];
+      const next = current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value];
+      return { ...prev, [presetName]: next };
+    });
+  };
+
+  const generateFromPresets = () => {
+    const attrs: VariantAttribute[] = [];
+    for (const preset of settings.variantAttributePresets) {
+      if (!activePresets.includes(preset.id)) continue;
+      const selected = selectedPresetValues[preset.name] ?? [];
+      if (selected.length > 0) {
+        attrs.push({ name: preset.name, values: selected });
+      }
+    }
+    // Also include manual attributes
+    const manualAttrs = variantAttrs.filter(
+      (a) => !settings.variantAttributePresets.some((p) => p.name === a.name)
+    );
+    const next = [...manualAttrs, ...attrs];
+    setVariantAttrs(next);
+    autoGenerateVariants(next);
+  };
+
+  const removePresetAttr = (presetId: string) => {
+    const preset = settings.variantAttributePresets.find((p) => p.id === presetId);
+    if (!preset) return;
+    setActivePresets((prev) => prev.filter((id) => id !== presetId));
+    setSelectedPresetValues((prev) => {
+      const copy = { ...prev };
+      delete copy[preset.name];
+      return copy;
+    });
+    const next = variantAttrs.filter((a) => a.name !== preset.name);
     setVariantAttrs(next);
     autoGenerateVariants(next);
   };
@@ -449,25 +499,77 @@ export default function AddProductModal({ onClose }: Props) {
                 </button>
               </div>
 
-              {/* Quick presets from settings */}
+              {/* Global Presets with Checkboxes */}
               {settings.variantAttributePresets.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-slate-500">Presets from Settings</p>
-                  <div className="flex flex-wrap gap-2">
-                    {settings.variantAttributePresets.map((preset) => (
-                      <button
-                        key={preset.id}
-                        onClick={() => {
-                          const next = [...variantAttrs, { name: preset.name, values: preset.values }];
-                          setVariantAttrs(next);
-                          autoGenerateVariants(next);
-                        }}
-                        className="px-3 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs rounded-lg transition-colors border border-violet-200 flex items-center gap-1"
-                      >
-                        <Layers className="w-3 h-3" /> + {preset.name}
-                      </button>
-                    ))}
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Global Presets — Select Values</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {settings.variantAttributePresets.map((preset) => {
+                      const isActive = activePresets.includes(preset.id);
+                      return (
+                        <div
+                          key={preset.id}
+                          className={`rounded-xl border p-3 transition-all ${
+                            isActive ? "border-violet-300 bg-violet-50/50" : "border-slate-200 bg-white"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id={`preset-${preset.id}`}
+                                checked={isActive}
+                                onChange={() => togglePreset(preset.id)}
+                                className="w-4 h-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                              />
+                              <label htmlFor={`preset-${preset.id}`} className="text-sm font-semibold text-slate-900 cursor-pointer">
+                                {preset.name}
+                              </label>
+                            </div>
+                            {isActive && (
+                              <span className="text-[10px] font-medium text-violet-600 bg-violet-100 px-1.5 py-0.5 rounded-full">
+                                {(selectedPresetValues[preset.name] ?? []).length} selected
+                              </span>
+                            )}
+                          </div>
+                          {isActive && (
+                            <div className="flex flex-wrap gap-1.5 pl-6">
+                              {preset.values.map((val) => {
+                                const checked = (selectedPresetValues[preset.name] ?? []).includes(val);
+                                return (
+                                  <label
+                                    key={val}
+                                    className={`cursor-pointer px-2 py-1 text-xs rounded-lg border transition-all ${
+                                      checked
+                                        ? "bg-violet-500 text-white border-violet-500"
+                                        : "bg-white text-slate-600 border-slate-200 hover:border-violet-300"
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="hidden"
+                                      checked={checked}
+                                      onChange={() => togglePresetValue(preset.name, val)}
+                                    />
+                                    {val}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
+                  {activePresets.length > 0 && (
+                    <button
+                      onClick={generateFromPresets}
+                      className="w-full h-10 bg-violet-500 hover:bg-violet-600 text-white text-sm font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors"
+                    >
+                      <Layers className="w-4 h-4" />
+                      Generate Variants from Selected
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -475,24 +577,35 @@ export default function AddProductModal({ onClose }: Props) {
               {variantAttrs.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Defined Attributes ({variantAttrs.length})</p>
-                  {variantAttrs.map((attr, idx) => (
-                    <div key={idx} className="flex items-center gap-3 bg-white rounded-lg p-3 border border-slate-200">
-                      <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-xs font-bold text-blue-600">
-                        {attr.name.charAt(0)}
-                      </div>
-                      <div className="flex-1">
-                        <span className="text-sm font-semibold text-slate-900">{attr.name}</span>
-                        <div className="flex gap-1.5 mt-1 flex-wrap">
-                          {attr.values.map((val) => (
-                            <span key={val} className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded-full">{val}</span>
-                          ))}
+                  {variantAttrs.map((attr, idx) => {
+                    const preset = settings.variantAttributePresets.find((p) => p.name === attr.name);
+                    return (
+                      <div key={idx} className="flex items-center gap-3 bg-white rounded-lg p-3 border border-slate-200">
+                        <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-xs font-bold text-blue-600">
+                          {attr.name.charAt(0)}
                         </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-slate-900">{attr.name}</span>
+                            {preset && (
+                              <span className="text-[10px] font-medium text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-full">Preset</span>
+                            )}
+                          </div>
+                          <div className="flex gap-1.5 mt-1 flex-wrap">
+                            {attr.values.map((val) => (
+                              <span key={val} className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded-full">{val}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => preset ? removePresetAttr(preset.id) : removeAttr(idx)}
+                          className="text-slate-400 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-                      <button onClick={() => removeAttr(idx)} className="text-slate-400 hover:text-red-500 transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
