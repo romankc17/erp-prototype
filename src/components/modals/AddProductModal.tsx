@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { X, Upload, Plus, Trash2, Layers, Check, RefreshCw, Zap, Printer, XCircle } from "lucide-react";
-import type { ProductVariant, VariantAttribute } from "../../data";
+import type { Product, ProductVariant, VariantAttribute } from "../../data";
 import { useStore } from "../../context/StoreContext";
 import { useProcurement } from "../../context/ProcurementContext";
 
 interface Props {
   onClose: () => void;
+  product?: Product;
 }
 
 function generateBarcode() {
@@ -39,30 +40,33 @@ function buildSKU(category: string, name: string): string {
   return `${catPart}-${namePart}-${rand}`;
 }
 
-export default function AddProductModal({ onClose }: Props) {
-  const { categories, addProduct, addCategory } = useStore();
+export default function AddProductModal({ onClose, product }: Props) {
+  const isEdit = !!product;
+  const { categories, addProduct, addCategory, updateProduct } = useStore();
   const { settings } = useProcurement();
 
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [hasVariants, setHasVariants] = useState(false);
-  const [variantAttrs, setVariantAttrs] = useState<VariantAttribute[]>([]);
+  const [imagePreview, setImagePreview] = useState<string | null>(product?.image || null);
+  const [hasVariants, setHasVariants] = useState(product?.hasVariants ?? false);
+  const [variantAttrs, setVariantAttrs] = useState<VariantAttribute[]>(
+    product?.variantAttributes.map((a) => ({ name: a.name, values: a.options })) ?? []
+  );
   const [selectedPresetValues, setSelectedPresetValues] = useState<Record<string, string[]>>({});
   const [activePresets, setActivePresets] = useState<string[]>([]);
   const [newAttrName, setNewAttrName] = useState("");
   const [newAttrValues, setNewAttrValues] = useState("");
-  const [generatedVariants, setGeneratedVariants] = useState<ProductVariant[]>([]);
+  const [generatedVariants, setGeneratedVariants] = useState<ProductVariant[]>(product?.variants ?? []);
   const [quickStockValue, setQuickStockValue] = useState("");
-  const [baseSku, setBaseSku] = useState("");
-  const [skuAutoMode, setSkuAutoMode] = useState(true);
-  const [productName, setProductName] = useState("");
-  const [category, setCategory] = useState("");
-  const [costPrice, setCostPrice] = useState("");
-  const [sellingPrice, setSellingPrice] = useState("");
-  const [unit, setUnit] = useState("pcs");
-  const [description, setDescription] = useState("");
-  const [initialStock, setInitialStock] = useState("0");
-  const [location, setLocation] = useState("Rack A1");
-  const [branch, setBranch] = useState("Main Branch");
+  const [baseSku, setBaseSku] = useState(product?.sku ?? "");
+  const [skuAutoMode, setSkuAutoMode] = useState(!product?.sku);
+  const [productName, setProductName] = useState(product?.name ?? "");
+  const [category, setCategory] = useState(product?.category ?? "");
+  const [costPrice, setCostPrice] = useState(product?.costPrice?.toString() ?? "");
+  const [sellingPrice, setSellingPrice] = useState(product?.basePrice?.toString() ?? "");
+  const [unit, setUnit] = useState(product?.unit ?? "pcs");
+  const [description, setDescription] = useState(product?.description ?? "");
+  const [initialStock, setInitialStock] = useState(product?.availableQty?.toString() ?? "0");
+  const [location, setLocation] = useState(product?.location ?? "Rack A1");
+  const [branch, setBranch] = useState(product?.branch ?? "Main Branch");
   const [newCategoryInput, setNewCategoryInput] = useState("");
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [step, setStep] = useState<"basic" | "variants" | "stock">("basic");
@@ -253,8 +257,30 @@ export default function AddProductModal({ onClose }: Props) {
   const handleSave = () => {
     if (!productName.trim()) return;
     const qty = hasVariants ? totalVariantStock : Number(initialStock);
-    const mainBarcode = generateBarcode();
     const productVariants = generatedVariants.map((v) => ({ ...v, price: Number(sellingPrice) || 0 }));
+
+    if (isEdit && product) {
+      updateProduct(product.id, {
+        name: productName.trim(),
+        sku: baseSku || buildSKU(category, productName),
+        category: category || "Uncategorized",
+        description,
+        costPrice: Number(costPrice) || 0,
+        basePrice: Number(sellingPrice) || 0,
+        unit,
+        availableQty: qty,
+        location,
+        branch,
+        image: imagePreview || "",
+        hasVariants,
+        variantAttributes: variantAttrs.map((a) => ({ name: a.name, options: a.values })),
+        variants: productVariants,
+      });
+      onClose();
+      return;
+    }
+
+    const mainBarcode = generateBarcode();
     addProduct({
       id: `P${Date.now()}`,
       name: productName.trim(),
@@ -457,8 +483,8 @@ export default function AddProductModal({ onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-slate-200 flex-shrink-0">
           <div>
-            <h3 className="text-lg font-semibold text-slate-900">Add New Product</h3>
-            <p className="text-xs text-slate-500">Create a new product with optional variants</p>
+            <h3 className="text-lg font-semibold text-slate-900">{isEdit ? "Edit Product" : "Add New Product"}</h3>
+            <p className="text-xs text-slate-500">{isEdit ? "Update product details and variants" : "Create a new product with optional variants"}</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors">
             <X className="w-5 h-5 text-slate-400" />
@@ -956,7 +982,7 @@ export default function AddProductModal({ onClose }: Props) {
               </button>
             ) : (
               <button onClick={handleSave} className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg flex items-center gap-2 transition-colors">
-                <Check className="w-4 h-4" /> Save Product
+                <Check className="w-4 h-4" /> {isEdit ? "Update Product" : "Save Product"}
               </button>
             )}
           </div>

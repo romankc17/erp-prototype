@@ -36,6 +36,7 @@ export default function Products() {
   const [bulkDropdown, setBulkDropdown] = useState(false);
   const [rowDropdown, setRowDropdown] = useState<string | null>(null);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [editProduct, setEditProduct] = useState<Product | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const rowDropdownRef = useRef<HTMLDivElement>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
@@ -266,7 +267,13 @@ export default function Products() {
                       </button>
                     ))}
                     <div className="border-t border-slate-100 my-1" />
-                    <button onClick={() => { clearSelection(); setBulkDropdown(false); }} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2">
+                    <button onClick={() => {
+                      if (window.confirm(`Delete ${selectedIds.size} selected product(s)?`)) {
+                        selectedIds.forEach((id) => deleteProduct(id));
+                        clearSelection();
+                      }
+                      setBulkDropdown(false);
+                    }} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2">
                       <Trash2 className="w-3.5 h-3.5" /> Delete Selected
                     </button>
                   </div>
@@ -376,7 +383,7 @@ export default function Products() {
                   <td className="px-3 py-2.5 text-sm font-semibold text-slate-900 text-right">{product.availableQty}</td>
                   <td className="px-3 py-2.5"><StatusBadge status={stockStatus(product.availableQty)} /></td>
                   <td className="px-3 py-2.5 relative">
-                    <div ref={rowDropdown === product.id ? rowDropdownRef : undefined}>
+                    <div ref={rowDropdownRef} data-product-id={product.id}>
                       <button
                         onClick={() => setRowDropdown(rowDropdown === product.id ? null : product.id)}
                         className="w-8 h-8 rounded-lg hover:bg-slate-200 flex items-center justify-center transition-colors"
@@ -387,7 +394,7 @@ export default function Products() {
                         <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl border border-slate-200 shadow-lg z-30 py-1">
                           {[
                             { label: "View Details", icon: Eye, color: "text-slate-700", action: () => { setDetailProduct(product); setRowDropdown(null); } },
-                            { label: "Edit", icon: Pencil, color: "text-blue-600", action: () => { setRowDropdown(null); /* TODO: open edit modal */ } },
+                            { label: "Edit", icon: Pencil, color: "text-blue-600", action: () => { setEditProduct(product); setRowDropdown(null); } },
                             { label: "Add Stock", icon: Plus, color: "text-blue-600", action: () => openAddStock(product) },
                             { label: "Create Barcode", icon: Barcode, color: "text-violet-600", action: () => openBarcode([product]) },
                             { label: "Move to Damage / Return", icon: RotateCcw, color: "text-amber-600", action: () => openMove([product]) },
@@ -402,7 +409,12 @@ export default function Products() {
                           ))}
                           <div className="border-t border-slate-100 my-1" />
                           <button
-                            onClick={() => { deleteProduct(product.id); setRowDropdown(null); }}
+                            onClick={() => {
+                              if (window.confirm(`Delete "${product.name}"?`)) {
+                                deleteProduct(product.id);
+                              }
+                              setRowDropdown(null);
+                            }}
                             className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
                           >
                             <Trash2 className="w-3.5 h-3.5" /> Delete
@@ -465,6 +477,12 @@ export default function Products() {
               adjustStock({ productId: activeProduct.id, sku, delta, reason });
             });
           }}
+        />
+      )}
+      {editProduct && (
+        <AddProductModal
+          product={editProduct}
+          onClose={() => setEditProduct(null)}
         />
       )}
     </div>
