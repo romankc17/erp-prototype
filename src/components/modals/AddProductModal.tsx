@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Upload, Plus, Trash2, Layers, Check, RefreshCw, Zap } from "lucide-react";
+import { X, Upload, Plus, Trash2, Layers, Check, RefreshCw, Zap, Printer, XCircle } from "lucide-react";
 import type { ProductVariant, VariantAttribute } from "../../data";
 import { useStore } from "../../context/StoreContext";
 import { useProcurement } from "../../context/ProcurementContext";
@@ -66,6 +66,14 @@ export default function AddProductModal({ onClose }: Props) {
   const [newCategoryInput, setNewCategoryInput] = useState("");
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [step, setStep] = useState<"basic" | "variants" | "stock">("basic");
+  const [showBarcodePrompt, setShowBarcodePrompt] = useState(false);
+  const [savedProduct, setSavedProduct] = useState<{
+    name: string;
+    sku: string;
+    barcode: string;
+    variants: ProductVariant[];
+    hasVariants: boolean;
+  } | null>(null);
 
   const addVariantAttribute = () => {
     if (!newAttrName.trim() || !newAttrValues.trim()) return;
@@ -245,11 +253,13 @@ export default function AddProductModal({ onClose }: Props) {
   const handleSave = () => {
     if (!productName.trim()) return;
     const qty = hasVariants ? totalVariantStock : Number(initialStock);
+    const mainBarcode = generateBarcode();
+    const productVariants = generatedVariants.map((v) => ({ ...v, price: Number(sellingPrice) || 0 }));
     addProduct({
       id: `P${Date.now()}`,
       name: productName.trim(),
       sku: baseSku || buildSKU(category, productName),
-      barcode: generateBarcode(),
+      barcode: mainBarcode,
       category: category || "Uncategorized",
       subCategory: "",
       brand: "",
@@ -271,10 +281,173 @@ export default function AddProductModal({ onClose }: Props) {
       image: imagePreview || "",
       hasVariants,
       variantAttributes: variantAttrs.map((a) => ({ name: a.name, options: a.values })),
-      variants: generatedVariants.map((v) => ({ ...v, price: Number(sellingPrice) || 0 })),
+      variants: productVariants,
       bargainEnabled: false,
       seasonalDiscount: 0,
     });
+    setSavedProduct({
+      name: productName.trim(),
+      sku: baseSku || buildSKU(category, productName),
+      barcode: mainBarcode,
+      variants: productVariants,
+      hasVariants,
+    });
+    setShowBarcodePrompt(true);
+  };
+
+  const handlePrintBarcodes = () => {
+    if (!savedProduct) return;
+    const items = savedProduct.hasVariants
+      ? savedProduct.variants.map((v) => ({
+          name: savedProduct.name,
+          sku: v.sku,
+          barcode: v.barcode,
+          variant: Object.values(v.attributes).join(" / "),
+        }))
+      : [{
+          name: savedProduct.name,
+          sku: savedProduct.sku,
+          barcode: savedProduct.barcode,
+          variant: "",
+        }];
+
+    const w = window.open("", "_blank", "width=800,height=600");
+    if (!w) return;
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Barcode Labels — ${savedProduct.name}</title>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <style>
+    @page { size: A4; margin: 10mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f8fafc;
+      padding: 20px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .header h1 { font-size: 18px; color: #0f172a; }
+    .header p { font-size: 12px; color: #64748b; margin-top: 4px; }
+    .print-btn {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      padding: 10px 20px;
+      background: #0f172a;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .print-btn:hover { background: #1e293b; }
+    @media print {
+      .print-btn { display: none; }
+      body { background: white; padding: 0; }
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .label {
+      background: white;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 140px;
+    }
+    .label-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 2px;
+      line-height: 1.3;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .label-variant {
+      font-size: 10px;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+    .label svg {
+      max-width: 180px;
+      height: 50px;
+    }
+    .label-sku {
+      font-size: 9px;
+      color: #94a3b8;
+      font-family: monospace;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+  <div class="header">
+    <h1>Barcode Labels</h1>
+    <p>${savedProduct.name} — ${items.length} label${items.length > 1 ? "s" : ""}</p>
+  </div>
+  <div class="grid">
+    ${items.map((item, i) => `
+      <div class="label">
+        <div class="label-name">${item.name}</div>
+        ${item.variant ? `<div class="label-variant">${item.variant}</div>` : ""}
+        <svg id="bc-${i}"></svg>
+        <div class="label-sku">${item.sku}</div>
+      </div>
+    `).join("")}
+  </div>
+  <script>
+    window.onload = function() {
+      const items = ${JSON.stringify(items)};
+      items.forEach((item, i) => {
+        try {
+          JsBarcode("#bc-" + i, item.barcode, {
+            format: "CODE128",
+            width: 2,
+            height: 40,
+            displayValue: true,
+            fontSize: 11,
+            margin: 0
+          });
+        } catch(e) {
+          console.error("Barcode error:", e);
+        }
+      });
+    };
+  </script>
+</body>
+</html>`;
+
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    setShowBarcodePrompt(false);
+    onClose();
+  };
+
+  const handleSkipBarcodes = () => {
+    setShowBarcodePrompt(false);
     onClose();
   };
 
@@ -788,6 +961,37 @@ export default function AddProductModal({ onClose }: Props) {
             )}
           </div>
         </div>
+
+        {/* Barcode Print Prompt */}
+        {showBarcodePrompt && savedProduct && (
+          <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex items-center justify-center p-6 rounded-2xl">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xl p-6 w-full max-w-sm text-center">
+              <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Printer className="w-7 h-7 text-emerald-600" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">Product Saved!</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                {savedProduct.hasVariants
+                  ? `${savedProduct.variants.length} variant${savedProduct.variants.length > 1 ? "s" : ""} created. Print barcode labels now?`
+                  : "Print barcode label for this product?"}
+              </p>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handleSkipBarcodes}
+                  className="flex-1 h-11 px-4 border border-slate-300 text-slate-700 text-sm font-medium rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <XCircle className="w-4 h-4" /> Skip
+                </button>
+                <button
+                  onClick={handlePrintBarcodes}
+                  className="flex-1 h-11 px-4 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+                >
+                  <Printer className="w-4 h-4" /> Print
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
