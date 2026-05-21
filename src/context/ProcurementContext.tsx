@@ -14,6 +14,7 @@ import type {
   Warehouse,
   TaxRule,
   DepartmentBudget,
+  VariantAttributePreset,
 } from "@/domain/procurement/types";
 import * as procurementService from "@/services/procurementService";
 
@@ -32,6 +33,10 @@ type ProcurementCtx = {
   deleteWarehouse: (id: string) => Promise<void>;
   upsertBudget: (b: DepartmentBudget) => Promise<void>;
   deleteBudget: (id: string) => Promise<void>;
+
+  // variant attribute presets
+  upsertVariantAttributePreset: (preset: VariantAttributePreset) => Promise<void>;
+  deleteVariantAttributePreset: (id: string) => Promise<void>;
 
   // vendors
   addVendor: (v: Omit<VendorProfile, "id">) => Promise<VendorProfile>;
@@ -121,6 +126,16 @@ export function ProcurementProvider({ children }: { children: ReactNode }) {
     await refresh();
   };
 
+  const upsertVariantAttributePreset = async (preset: VariantAttributePreset) => {
+    await procurementService.upsertVariantAttributePreset(preset);
+    await refresh();
+  };
+
+  const deleteVariantAttributePreset = async (id: string) => {
+    await procurementService.deleteVariantAttributePreset(id);
+    await refresh();
+  };
+
   const addVendor = async (v: Omit<VendorProfile, "id">) => {
     const created = await procurementService.createVendor(v);
     await refresh();
@@ -161,6 +176,8 @@ export function ProcurementProvider({ children }: { children: ReactNode }) {
       deleteWarehouse,
       upsertBudget,
       deleteBudget,
+      upsertVariantAttributePreset,
+      deleteVariantAttributePreset,
       addVendor,
       updateVendor,
       deleteVendor,
@@ -184,6 +201,7 @@ function seedSettings(): ProcurementSettings {
     taxRules: [],
     currency: { code: "NPR", symbol: "Rs." },
     warehouses: [],
+    variantAttributePresets: [],
   };
 }
 

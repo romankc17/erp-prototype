@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Check, Plus, Trash2 } from "lucide-react";
 import { useProcurement } from "../../context/ProcurementContext";
-import type { ApprovalRule, TaxRule, Warehouse, DepartmentBudget } from "../../domain/procurement/types";
+import type { ApprovalRule, TaxRule, Warehouse, DepartmentBudget, VariantAttributePreset } from "../../domain/procurement/types";
 
 export default function ProcurementSettings() {
   const {
@@ -15,6 +15,8 @@ export default function ProcurementSettings() {
     deleteWarehouse,
     upsertBudget,
     deleteBudget,
+    upsertVariantAttributePreset,
+    deleteVariantAttributePreset,
   } = useProcurement();
 
   const [newDept, setNewDept] = useState("All");
@@ -33,6 +35,9 @@ export default function ProcurementSettings() {
   const [budDept, setBudDept] = useState("Marketing");
   const [budYear, setBudYear] = useState("2025-26");
   const [budCap, setBudCap] = useState("1200000");
+
+  const [presetName, setPresetName] = useState("");
+  const [presetValues, setPresetValues] = useState("");
 
   const approvalSorted = useMemo(
     () => [...settings.approvalRules].sort((a, b) => a.minAmount - b.minAmount),
@@ -85,6 +90,20 @@ export default function ProcurementSettings() {
       spentAmount: 0,
     };
     upsertBudget(b);
+  };
+
+  const addPreset = () => {
+    const trimmedName = presetName.trim();
+    const trimmedValues = presetValues.split(",").map((v) => v.trim()).filter(Boolean);
+    if (!trimmedName || trimmedValues.length === 0) return;
+    const preset: VariantAttributePreset = {
+      id: `pre-${Date.now()}`,
+      name: trimmedName,
+      values: trimmedValues,
+    };
+    upsertVariantAttributePreset(preset);
+    setPresetName("");
+    setPresetValues("");
   };
 
   return (
@@ -276,6 +295,38 @@ export default function ProcurementSettings() {
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Variant Attribute Presets */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-900">Variant Attribute Presets</h3>
+          <span className="text-xs text-slate-400">Pre-defined Color, Size, Material values</span>
+        </div>
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] gap-2">
+          <input value={presetName} onChange={(e) => setPresetName(e.target.value)} className="h-9 px-2 rounded border border-slate-300 text-sm" placeholder="Name (e.g., Color)" />
+          <input value={presetValues} onChange={(e) => setPresetValues(e.target.value)} className="h-9 px-2 rounded border border-slate-300 text-sm" placeholder="Values: Red, Blue, Black..." />
+          <button onClick={addPreset} className="h-9 px-3 bg-slate-900 hover:bg-slate-950 text-white text-sm rounded-lg flex items-center justify-center gap-2">
+            <Plus className="w-4 h-4" /> Add
+          </button>
+        </div>
+        <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
+          {settings.variantAttributePresets.map((p) => (
+            <div key={p.id} className="p-3 flex items-center justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-slate-900">{p.name}</p>
+                <div className="flex gap-1.5 mt-1 flex-wrap">
+                  {p.values.map((v) => (
+                    <span key={v} className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded-full">{v}</span>
+                  ))}
+                </div>
+              </div>
+              <button onClick={() => deleteVariantAttributePreset(p.id)} className="w-9 h-9 rounded-lg hover:bg-red-50 text-red-600 flex items-center justify-center">
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           ))}
         </div>

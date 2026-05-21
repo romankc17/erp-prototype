@@ -48,6 +48,11 @@ function seedSettings(): ProcurementSettings {
       { id: uid("wh"), name: "Main Warehouse", address: "Kathmandu", active: true },
       { id: uid("wh"), name: "Thamel Outlet Store", address: "Thamel, Kathmandu", active: true },
     ],
+    variantAttributePresets: [
+      { id: uid("pre"), name: "Color", values: ["Red", "Blue", "Black", "White", "Green", "Navy", "Grey", "Maroon", "Beige", "Olive"] },
+      { id: uid("pre"), name: "Size", values: ["S", "M", "L", "XL", "XXL", "28", "30", "32", "34", "36", "38"] },
+      { id: uid("pre"), name: "Material", values: ["Cotton", "Polyester", "Silk", "Linen", "Wool"] },
+    ],
   };
 }
 
@@ -197,6 +202,34 @@ export async function deleteBudget(id: string) {
   const next: ProcurementState = {
     ...state,
     settings: { ...state.settings, budgets: state.settings.budgets.filter((b) => b.id !== id) },
+  };
+  saveState(next);
+}
+
+// ─── Variant Attribute Presets ───────────────────────────────────────────────
+
+export async function getVariantAttributePresets() {
+  await delay(100);
+  return loadState().settings.variantAttributePresets;
+}
+
+export async function upsertVariantAttributePreset(preset: { id: string; name: string; values: string[] }) {
+  await delay(200);
+  const state = loadState();
+  const next: ProcurementState = {
+    ...state,
+    settings: { ...state.settings, variantAttributePresets: replaceById(state.settings.variantAttributePresets, preset) },
+  };
+  saveState(next);
+  return next.settings.variantAttributePresets;
+}
+
+export async function deleteVariantAttributePreset(id: string) {
+  await delay(200);
+  const state = loadState();
+  const next: ProcurementState = {
+    ...state,
+    settings: { ...state.settings, variantAttributePresets: state.settings.variantAttributePresets.filter((p) => p.id !== id) },
   };
   saveState(next);
 }

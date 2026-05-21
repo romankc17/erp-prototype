@@ -39,6 +39,12 @@ export interface Warehouse {
   active: boolean;
 }
 
+export interface VariantAttributePreset {
+  id: string;
+  name: string;
+  values: string[];
+}
+
 export interface ProcurementSettings {
   approvalRules: ApprovalRule[];
   budgets: DepartmentBudget[];
@@ -48,6 +54,7 @@ export interface ProcurementSettings {
   taxRules: TaxRule[];
   currency: { code: string; symbol: string };
   warehouses: Warehouse[];
+  variantAttributePresets: VariantAttributePreset[];
 }
 
 export interface VendorPriceListItem {

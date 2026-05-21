@@ -3,7 +3,7 @@ import {
   Plus, Minus, Trash2, Search, Pause, Play, Receipt,
   Banknote, CreditCard, Split, Package,
   LayoutGrid, List, History, Lock, Unlock,
-  ShoppingCart, Tag, X, TrendingUp, Printer, RotateCcw as ReturnIcon,
+  ShoppingCart, Tag, X, TrendingUp, Printer, RotateCcw, RotateCcw as ReturnIcon,
 } from "lucide-react";
 import { useStore } from "../context/StoreContext";
 import { DENOMINATIONS } from "../data/clothingData";
@@ -66,6 +66,7 @@ export default function POS() {
     discountPolicy,
     users,
     currentUser,
+    shifts,
     activeShift,
     openShift,
     closeShift,
@@ -533,6 +534,25 @@ export default function POS() {
   // ==================== OPEN SESSION SCREEN ====================
   const openDenomTotal = Object.entries(openDenom).reduce((s, [d, c]) => s + Number(d) * c, 0);
 
+  const lastClosedShiftAmount = useMemo(() => {
+    const closed = shifts.filter((s) => s.status === "closed" && s.countedCash !== null);
+    if (closed.length === 0) return null;
+    return closed.sort((a, b) => new Date(b.closedAt!).getTime() - new Date(a.closedAt!).getTime())[0].countedCash;
+  }, [shifts]);
+
+  function distributeDenominations(amount: number): Record<number, number> {
+    const result: Record<number, number> = {};
+    let remaining = amount;
+    for (const d of DENOMINATIONS) {
+      const count = Math.floor(remaining / d);
+      if (count > 0) {
+        result[d] = count;
+        remaining -= count * d;
+      }
+    }
+    return result;
+  }
+
   if (!activeShift && !(activeTab === "analytics" && lastClosedShift) && !showCloseDialog) {
     return (
       <div className="h-[calc(100vh-64px)] flex flex-col bg-slate-50">
@@ -592,6 +612,17 @@ export default function POS() {
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4">Count Opening Cash</p>
+
+              {lastClosedShiftAmount !== null && (
+                <button
+                  onClick={() => setOpenDenom(distributeDenominations(lastClosedShiftAmount!))}
+                  className="w-full mb-4 h-9 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Use Previous Closing Amount — Rs. {lastClosedShiftAmount.toLocaleString("en-IN")}
+                </button>
+              )}
+
               <div className="grid grid-cols-3 gap-3">
                 {DENOMINATIONS.map(d => (
                   <div key={d}>
@@ -773,7 +804,7 @@ export default function POS() {
               )}
 
               {viewMode === "grid" ? (
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
                   {filteredProducts.map(p => {
                     const scheme = getScheme(p.category);
                     const displayPrice = p.salePrice ?? p.basePrice;
@@ -807,13 +838,13 @@ export default function POS() {
                         <div className="p-2.5">
                           <p className="text-xs font-semibold text-slate-900 line-clamp-2 leading-tight mb-1.5">{p.name}</p>
                           <div className="flex items-center justify-between">
-                            <div>
+                            <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 min-w-0">
                               <span className="text-sm font-bold text-blue-600">
                                 Rs. {discountedPrice.toLocaleString("en-IN")}
                               </span>
                               {p.seasonalDiscount > 0 && (
-                                <span className="text-[10px] text-slate-400 line-through ml-1">
-                                  {displayPrice.toLocaleString("en-IN")}
+                                <span className="text-[10px] text-slate-400 line-through">
+                                  Rs. {displayPrice.toLocaleString("en-IN")}
                                 </span>
                               )}
                             </div>
@@ -875,7 +906,7 @@ export default function POS() {
           </div>
 
           {/* ==================== CART PANEL ==================== */}
-          <div className="w-[380px] bg-white border-l border-slate-200 flex flex-col">
+          <div className="w-[360px] xl:w-[380px] bg-white border-l border-slate-200 flex flex-col">
             {/* Customer + Hold */}
             <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
               <input
@@ -1468,7 +1499,7 @@ export default function POS() {
         const ready = product.variantAttributes.every(a => selectedVariant[a.name]);
         return (
           <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowVariantPicker(null)}>
-            <div className="bg-white rounded-2xl shadow-2xl p-6 w-[380px]" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-[380px]" onClick={e => e.stopPropagation()}>
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <h3 className="text-base font-bold text-slate-900">{product.name}</h3>
@@ -1516,7 +1547,7 @@ export default function POS() {
       {/* Hold Dialog */}
       {showHoldDialog && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowHoldDialog(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-[380px]" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-[380px]" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-3">
               <div>
                 <h3 className="text-base font-bold text-slate-900">Hold Bill</h3>
@@ -1713,7 +1744,7 @@ export default function POS() {
       {/* Receipt Modal */}
       {showReceipt && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowReceipt(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-[380px] max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[380px] max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             {/* Receipt header */}
             <div className="p-6 pb-4">
               <div className="text-center pb-4 mb-4 border-b-2 border-dashed border-slate-200">

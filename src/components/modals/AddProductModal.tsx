@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { X, Upload, Plus, Trash2, Layers, Check, RefreshCw } from "lucide-react";
+import { X, Upload, Plus, Trash2, Layers, Check, RefreshCw, Zap } from "lucide-react";
 import type { ProductVariant, VariantAttribute } from "../../data";
 import { useStore } from "../../context/StoreContext";
+import { useProcurement } from "../../context/ProcurementContext";
 
 interface Props {
   onClose: () => void;
@@ -40,6 +41,7 @@ function buildSKU(category: string, name: string): string {
 
 export default function AddProductModal({ onClose }: Props) {
   const { categories, addProduct, addCategory } = useStore();
+  const { settings } = useProcurement();
 
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [hasVariants, setHasVariants] = useState(false);
@@ -47,6 +49,7 @@ export default function AddProductModal({ onClose }: Props) {
   const [newAttrName, setNewAttrName] = useState("");
   const [newAttrValues, setNewAttrValues] = useState("");
   const [generatedVariants, setGeneratedVariants] = useState<ProductVariant[]>([]);
+  const [quickStockValue, setQuickStockValue] = useState("");
   const [baseSku, setBaseSku] = useState("");
   const [skuAutoMode, setSkuAutoMode] = useState(true);
   const [productName, setProductName] = useState("");
@@ -114,6 +117,12 @@ export default function AddProductModal({ onClose }: Props) {
 
   const updateVariantStock = (id: string, stock: number) => {
     setGeneratedVariants((prev) => prev.map((v) => v.id === id ? { ...v, stock } : v));
+  };
+
+  const applyQuickStock = () => {
+    const val = Number(quickStockValue);
+    if (!Number.isFinite(val) || val < 0) return;
+    setGeneratedVariants((prev) => prev.map((v) => ({ ...v, stock: val })));
   };
 
   const updateVariantBarcode = (id: string, barcode: string) => {
@@ -220,8 +229,8 @@ export default function AddProductModal({ onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-[680px] max-h-[92vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-3 sm:p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-slate-200 flex-shrink-0">
           <div>
@@ -234,7 +243,7 @@ export default function AddProductModal({ onClose }: Props) {
         </div>
 
         {/* Step Tabs */}
-        <div className="flex border-b border-slate-200 bg-slate-50 px-5">
+        <div className="flex border-b border-slate-200 bg-slate-50 px-3 sm:px-5 overflow-x-auto">
           {[
             { id: "basic", label: "Basic Info", desc: "Name, pricing, image" },
             { id: "variants", label: "Variants", desc: "Color, size, combinations" },
@@ -243,7 +252,7 @@ export default function AddProductModal({ onClose }: Props) {
             <button
               key={s.id}
               onClick={() => setStep(s.id as typeof step)}
-              className={`flex-1 py-3 text-left px-2 border-b-2 transition-all ${
+              className={`min-w-[170px] flex-1 py-3 text-left px-2 border-b-2 transition-all ${
                 step === s.id ? "border-blue-500 bg-white" : "border-transparent hover:bg-slate-100"
               }`}
             >
@@ -261,12 +270,12 @@ export default function AddProductModal({ onClose }: Props) {
         </div>
 
         {/* Body */}
-        <div className="p-5 space-y-4 overflow-y-auto flex-1">
+        <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
           {/* ========== BASIC INFO STEP ========== */}
           {step === "basic" && (
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-1">
+              <div className="grid grid-cols-1 sm:grid-cols-[160px_minmax(0,1fr)] gap-4">
+                <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Product Image</label>
                   <div
                     className="border-2 border-dashed border-slate-300 rounded-xl aspect-square flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"
@@ -283,7 +292,7 @@ export default function AddProductModal({ onClose }: Props) {
                     <input id="product-image" type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) setImagePreview(URL.createObjectURL(f)); }} />
                   </div>
                 </div>
-                <div className="col-span-2 space-y-3">
+                <div className="min-w-0 space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Product Name <span className="text-red-500">*</span></label>
                     <input
@@ -319,11 +328,11 @@ export default function AddProductModal({ onClose }: Props) {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="min-w-0">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
                       {showNewCategory ? (
-                        <div className="flex gap-1.5">
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-1.5">
                           <input
                             autoFocus
                             type="text"
@@ -331,10 +340,10 @@ export default function AddProductModal({ onClose }: Props) {
                             onChange={(e) => setNewCategoryInput(e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter") handleAddNewCategory(); if (e.key === "Escape") setShowNewCategory(false); }}
                             placeholder="New category name"
-                            className="flex-1 h-10 px-3 rounded-lg border border-blue-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                            className="min-w-0 h-10 px-3 rounded-lg border border-blue-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                           />
                           <button onClick={handleAddNewCategory} className="h-10 px-3 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-lg transition-colors">Add</button>
-                          <button onClick={() => setShowNewCategory(false)} className="h-10 px-2 text-slate-400 hover:text-slate-600 transition-colors"><X className="w-4 h-4" /></button>
+                          <button onClick={() => setShowNewCategory(false)} className="h-10 w-10 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors flex items-center justify-center"><X className="w-4 h-4" /></button>
                         </div>
                       ) : (
                         <select
@@ -351,7 +360,7 @@ export default function AddProductModal({ onClose }: Props) {
                         </select>
                       )}
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Unit</label>
                       <select value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-blue-500 bg-white">
                         <option>pcs</option>
@@ -364,7 +373,7 @@ export default function AddProductModal({ onClose }: Props) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Cost Price (NPR)</label>
                   <input type="number" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="0.00" className="w-full h-10 px-3 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" />
@@ -396,7 +405,7 @@ export default function AddProductModal({ onClose }: Props) {
                     onClick={() => { setHasVariants(!hasVariants); if (!hasVariants) setStep("variants"); }}
                     className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${hasVariants ? "bg-blue-500" : "bg-slate-300"}`}
                   >
-                    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${hasVariants ? "translate-x-5.5" : "translate-x-0.5"}`} />
+                    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${hasVariants ? "translate-x-5" : "translate-x-0.5"}`} />
                   </button>
                 </div>
               </div>
@@ -412,8 +421,8 @@ export default function AddProductModal({ onClose }: Props) {
               </div>
 
               {/* Add Attribute */}
-              <div className="flex gap-3 items-end">
-                <div className="flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] gap-3 items-end">
+                <div className="min-w-0">
                   <label className="block text-xs font-medium text-slate-600 mb-1">Attribute Name</label>
                   <input
                     type="text"
@@ -424,7 +433,7 @@ export default function AddProductModal({ onClose }: Props) {
                     className="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-blue-500"
                   />
                 </div>
-                <div className="flex-[2]">
+                <div className="min-w-0">
                   <label className="block text-xs font-medium text-slate-600 mb-1">Values (comma-separated)</label>
                   <input
                     type="text"
@@ -435,20 +444,30 @@ export default function AddProductModal({ onClose }: Props) {
                     className="w-full h-9 px-3 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-blue-500"
                   />
                 </div>
-                <button onClick={addVariantAttribute} className="h-9 px-3 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg flex items-center gap-1 transition-colors flex-shrink-0">
+                <button onClick={addVariantAttribute} className="h-9 px-3 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-1 transition-colors">
                   <Plus className="w-4 h-4" /> Add
                 </button>
               </div>
 
-              {/* Quick presets */}
-              {variantAttrs.length === 0 && (
-                <div className="flex gap-2">
-                  <button onClick={() => { setNewAttrName("Color"); setNewAttrValues("Red, Blue, Black"); }} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs rounded-lg transition-colors">
-                    + Color preset
-                  </button>
-                  <button onClick={() => { setNewAttrName("Size"); setNewAttrValues("S, M, L, XL"); }} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs rounded-lg transition-colors">
-                    + Size preset
-                  </button>
+              {/* Quick presets from settings */}
+              {settings.variantAttributePresets.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-slate-500">Presets from Settings</p>
+                  <div className="flex flex-wrap gap-2">
+                    {settings.variantAttributePresets.map((preset) => (
+                      <button
+                        key={preset.id}
+                        onClick={() => {
+                          const next = [...variantAttrs, { name: preset.name, values: preset.values }];
+                          setVariantAttrs(next);
+                          autoGenerateVariants(next);
+                        }}
+                        className="px-3 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs rounded-lg transition-colors border border-violet-200 flex items-center gap-1"
+                      >
+                        <Layers className="w-3 h-3" /> + {preset.name}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -486,8 +505,8 @@ export default function AddProductModal({ onClose }: Props) {
                     </p>
                     <p className="text-xs text-slate-500">Total stock: <span className="font-semibold text-slate-900">{totalVariantStock}</span></p>
                   </div>
-                  <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-                    <table className="w-full text-sm">
+                  <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto">
+                    <table className="w-full min-w-[640px] text-sm">
                       <thead>
                         <tr className="bg-slate-50">
                           <th className="px-3 py-2 text-left text-[11px] font-medium text-slate-500">Variant</th>
@@ -549,8 +568,31 @@ export default function AddProductModal({ onClose }: Props) {
                       Total: {totalVariantStock}
                     </span>
                   </div>
-                  <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-                    <table className="w-full text-sm">
+
+                  {/* Quick stock fill */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="flex-1 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      <Zap className="w-4 h-4 text-amber-600" />
+                      <input
+                        type="number"
+                        min={0}
+                        value={quickStockValue}
+                        onChange={(e) => setQuickStockValue(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") applyQuickStock(); }}
+                        placeholder="Set all variant stock to..."
+                        className="flex-1 bg-transparent text-sm text-amber-900 placeholder:text-amber-400 focus:outline-none"
+                      />
+                    </div>
+                    <button
+                      onClick={applyQuickStock}
+                      disabled={!quickStockValue || Number(quickStockValue) < 0}
+                      className="h-9 px-3 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-medium rounded-lg transition-colors"
+                    >
+                      Apply All
+                    </button>
+                  </div>
+                  <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto">
+                    <table className="w-full min-w-[640px] text-sm">
                       <thead>
                         <tr className="bg-slate-50">
                           <th className="px-3 py-2 text-left text-[11px] font-medium text-slate-500">Variant</th>
@@ -587,7 +629,7 @@ export default function AddProductModal({ onClose }: Props) {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
                   <select value={location} onChange={(e) => setLocation(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-slate-300 text-sm focus:outline-none focus:border-blue-500 bg-white">
@@ -610,8 +652,8 @@ export default function AddProductModal({ onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-5 border-t border-slate-200 bg-slate-50 flex-shrink-0">
-          <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 sm:p-5 border-t border-slate-200 bg-slate-50 flex-shrink-0">
+          <div className="flex justify-end gap-2">
             {step !== "basic" && (
               <button onClick={() => setStep(step === "variants" ? "basic" : "variants")} className="px-4 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-white transition-colors">
                 Back

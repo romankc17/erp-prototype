@@ -98,6 +98,7 @@ interface StoreCtx {
   requireRole: (roles: Role[]) => boolean;
 
   // shifts & cash
+  shifts: Shift[];
   activeShift: Shift | null;
   openShift: (openingCash: number) => Promise<{ ok: true } | { ok: false; error: string }>;
   closeShift: (countedCash: number) => Promise<{ ok: true } | { ok: false; error: string }>;
@@ -323,6 +324,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     touchActivity,
     requireRole,
 
+    shifts: state?.shifts ?? [],
     activeShift,
     openShift,
     closeShift,
